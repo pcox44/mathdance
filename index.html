@@ -1,1 +1,151 @@
-https://pcox44.github.io/mathdance
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coordinate Loop Grid (0,0 Bottom Left)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+  }
+  #grid {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .cell {
+    border: 1px solid #888;
+    text-align: center;
+    padding: 10px;
+    font-weight: bold;
+    transition: background-color 0.3s;
+  }
+  .red { color: red; }
+  .blue { color: blue; }
+  .highlight {
+    background-color: yellow;
+  }
+  .start {
+    background-color: lightgreen;
+  }
+  input {
+    margin-right: 10px;
+  }
+</style>
+</head>
+<body>
+<h2>n × m Coordinate Grid Loop Finder (0,0 bottom-left)</h2>
+
+<label>n (width): <input type="number" id="n" min="1" value="5"></label>
+<label>m (height): <input type="number" id="m" min="1" value="7"></label>
+<button onclick="makeGrid()">Make Grid</button>
+
+<div id="grid"></div>
+
+<hr>
+
+<label>Enter red number: <input type="number" id="redNumber" min="0"></label>
+<button onclick="findLoop()">Find Loop</button>
+
+<p><strong>Loop Result:</strong> <span id="loopResult"></span></p>
+
+<script>
+let n = 0, m = 0;
+
+function makeGrid() {
+  n = parseInt(document.getElementById('n').value);
+  m = parseInt(document.getElementById('m').value);
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+
+  const total = n * m;
+
+  // --- Red numbers: horizontal order (left→right, bottom→top)
+  const redNumbers = [];
+  for (let y = 0; y < m; y++) {
+    for (let x = 0; x < n; x++) {
+      redNumbers.push(y * n + x);
+    }
+  }
+
+  // --- Blue numbers: vertical order (bottom→top, left→right)
+  const blueNumbers = [];
+  for (let x = 0; x < n; x++) {
+    for (let y = 0; y < m; y++) {
+      blueNumbers.push(y + x * m);
+    }
+  }
+
+  // Draw grid top-to-bottom visually
+  for (let y = m - 1; y >= 0; y--) {
+    for (let x = 0; x < n; x++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      // Compute the red and blue index for this position
+      const redIndex = y * n + x;
+      const blueIndex = (m - 1 - y) + x * m; // vertical pattern, bottom→top
+
+      cell.dataset.red = redIndex;
+      cell.dataset.blue = blueIndex;
+      cell.innerHTML = `<span class="red">${redIndex}</span>,<span class="blue">${blueIndex}</span>`;
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function findLoop() {
+  const redNum = parseInt(document.getElementById('redNumber').value);
+  if (!n || !m) {
+    alert('Please create a grid first.');
+    return;
+  }
+  const total = n * m;
+  if (isNaN(redNum) || redNum < 0 || redNum >= total) {
+    alert(`Red number must be between 0 and ${total - 1}`);
+    return;
+  }
+
+  // Clear highlights
+  document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight', 'start'));
+
+  let loop = [];
+  let currentRed = redNum;
+  const visited = new Set();
+
+  while (!visited.has(currentRed)) {
+    visited.add(currentRed);
+    loop.push(currentRed);
+
+    // Find the cell whose blue number = currentRed
+    const cell = Array.from(document.querySelectorAll('.cell'))
+      .find(c => parseInt(c.dataset.blue) === currentRed);
+    if (!cell) break;
+
+    const nextRed = parseInt(cell.dataset.red);
+    currentRed = nextRed;
+
+    if (visited.has(currentRed)) {
+      loop.push(currentRed);
+      break;
+    }
+  }
+
+  document.getElementById('loopResult').textContent = loop.join(' → ');
+
+  // Highlight cells in loop
+  loop.forEach((num, i) => {
+    const cell = Array.from(document.querySelectorAll('.cell'))
+      .find(c => parseInt(c.dataset.red) === num);
+    if (cell) {
+      if (i === 0) cell.classList.add('start');
+      else cell.classList.add('highlight');
+    }
+  });
+}
+</script>
+</body>
+</html>
+
