@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Coordinate Loop Grid (0,0 Bottom Left)</title>
+<title>Coordinate Grid (0,0 bottom-left)</title>
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -32,10 +32,15 @@
   input {
     margin-right: 10px;
   }
+  #loopList {
+    margin-top: 20px;
+    font-family: monospace;
+    white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
-<h2>n × m Coordinate Grid Loop Finder (0,0 bottom-left)</h2>
+<h2>n × m Coordinate Grid (0,0 bottom-left → n×m−1, n×m−1 top-right)</h2>
 
 <label>n (width): <input type="number" id="n" min="1" value="5"></label>
 <label>m (height): <input type="number" id="m" min="1" value="7"></label>
@@ -46,9 +51,14 @@
 <hr>
 
 <label>Enter red number: <input type="number" id="redNumber" min="0"></label>
-<button onclick="findLoop()">Find Loop</button>
+<button onclick="findAndHighlightLoop()">Find Loop</button>
 
 <p><strong>Loop Result:</strong> <span id="loopResult"></span></p>
+
+<hr>
+
+<h3>All Loop Sizes</h3>
+<div id="loopList"></div>
 
 <script>
 let n = 0, m = 0;
@@ -62,57 +72,33 @@ function makeGrid() {
 
   const total = n * m;
 
-  // --- Red numbers: horizontal order (left→right, bottom→top)
-  const redNumbers = [];
-  for (let y = 0; y < m; y++) {
-    for (let x = 0; x < n; x++) {
-      redNumbers.push(y * n + x);
-    }
-  }
-
-  // --- Blue numbers: vertical order (bottom→top, left→right)
-  const blueNumbers = [];
-  for (let x = 0; x < n; x++) {
-    for (let y = 0; y < m; y++) {
-      blueNumbers.push(y + x * m);
-    }
-  }
-
-  // Draw grid top-to-bottom visually
+  // Build grid visually (top row first)
   for (let y = m - 1; y >= 0; y--) {
     for (let x = 0; x < n; x++) {
+      const red = y * n + x;  // horizontal order (bottom→top)
+      const blue = x * m + y; // vertical order (bottom→top)
       const cell = document.createElement('div');
       cell.className = 'cell';
-
-      // Compute the red and blue index for this position
-      const redIndex = y * n + x;
-      const blueIndex = (m - 1 - y) + x * m; // vertical pattern, bottom→top
-
-      cell.dataset.red = redIndex;
-      cell.dataset.blue = blueIndex;
-      cell.innerHTML = `<span class="red">${redIndex}</span>,<span class="blue">${blueIndex}</span>`;
+      cell.dataset.red = red;
+      cell.dataset.blue = blue;
+      cell.innerHTML = `(<span class="red">${red}</span>,<span class="blue">${blue}</span>)`;
       grid.appendChild(cell);
     }
   }
+
+  // Update input range
+  document.getElementById('redNumber').max = total - 1;
+
+  // Compute and list all loops
+  listAllLoops();
 }
 
-function findLoop() {
-  const redNum = parseInt(document.getElementById('redNumber').value);
-  if (!n || !m) {
-    alert('Please create a grid first.');
-    return;
-  }
+function findLoop(startRed) {
   const total = n * m;
-  if (isNaN(redNum) || redNum < 0 || redNum >= total) {
-    alert(`Red number must be between 0 and ${total - 1}`);
-    return;
-  }
-
-  // Clear highlights
-  document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight', 'start'));
+  if (isNaN(startRed) || startRed < 0 || startRed >= total) return [];
 
   let loop = [];
-  let currentRed = redNum;
+  let currentRed = startRed;
   const visited = new Set();
 
   while (!visited.has(currentRed)) {
@@ -133,9 +119,30 @@ function findLoop() {
     }
   }
 
-  document.getElementById('loopResult').textContent = loop.join(' → ');
+  return loop;
+}
 
-  // Highlight cells in loop
+function listAllLoops() {
+  const total = n * m;
+  const seen = new Set();
+  const results = [];
+
+  for (let i = 0; i < total; i++) {
+    if (seen.has(i)) continue;
+    const loop = findLoop(i);
+    const size = loop.length > 1 ? loop.length - 1 : 0;
+    results.push(`${loop.join(' → ')} (Loop size: ${size})`);
+    loop.forEach(num => seen.add(num));
+  }
+
+  const uniqueLoops = results.length;
+  const output = results.join('\n') + `\n\nTotal unique loops: ${uniqueLoops}`;
+  document.getElementById('loopList').textContent = output;
+}
+
+function highlightLoop(loop) {
+  // Clear highlights
+  document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight', 'start'));
   loop.forEach((num, i) => {
     const cell = Array.from(document.querySelectorAll('.cell'))
       .find(c => parseInt(c.dataset.red) === num);
@@ -145,7 +152,27 @@ function findLoop() {
     }
   });
 }
+
+function findAndHighlightLoop() {
+  const redNum = parseInt(document.getElementById('redNumber').value);
+  if (!n || !m) {
+    alert('Please create a grid first.');
+    return;
+  }
+  const total = n * m;
+  if (isNaN(redNum) || redNum < 0 || redNum >= total) {
+    alert(`Red number must be between 0 and ${total - 1}`);
+    return;
+  }
+
+  const loop = findLoop(redNum);
+  const size = loop.length > 1 ? loop.length - 1 : 0;
+
+  document.getElementById('loopResult').textContent =
+    `${loop.join(' → ')} (Loop size: ${size})`;
+
+  highlightLoop(loop);
+}
 </script>
 </body>
 </html>
-
