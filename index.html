@@ -3,50 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Coordinate Grid (0,0 bottom-left)</title>
+<title>Permutation Grid & Loops</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-  }
-  #grid {
-    display: grid;
-    gap: 4px;
-    margin-top: 10px;
-  }
-  .cell {
-    border: 1px solid #888;
-    text-align: center;
-    padding: 10px;
-    font-weight: bold;
-    transition: background-color 0.3s;
-  }
-  .red { color: red; }
-  .blue { color: blue; }
-  .highlight {
-    background-color: yellow;
-  }
-  .start {
-    background-color: lightgreen;
-  }
-  input {
-    margin-right: 10px;
-  }
-  #loopList {
-    margin-top: 20px;
-    font-family: monospace;
-    white-space: pre-wrap;
-  }
+  body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f8f8; }
+  #gridContainer { position: relative; margin-bottom: 20px; }
+  #grid { display: grid; gap: 4px; margin-top: 10px; position: relative; }
+  .cell { border: 1px solid #888; text-align: center; padding: 10px; font-weight: bold; transition: background-color 0.3s; }
+  .highlighted { background-color: #4CAF50 !important; color: white; }
+  #loopList { margin-top: 20px; font-family: monospace; white-space: pre-wrap; }
+  #permGraph { border: 1px solid #ccc; width: 100%; height: 400px; background-color: #eef; margin-top: 20px; }
+  line.edge { stroke: #aaa; stroke-width: 1.5; }
+  line.edge.highlighted { stroke: #4CAF50; stroke-width: 2.5; }
+  circle.node { fill: #555; stroke: #333; stroke-width: 1.5; }
+  circle.node.highlighted { fill: #4CAF50; }
+  #stats { margin-top: 10px; font-family: monospace; padding: 10px; background-color: #fff; border: 2px solid #4CAF50; border-radius: 6px; font-weight: bold; }
+  #barChartContainer { margin-top: 20px; height: 300px; } /* back to big chart */
+  #barChart { width: 100%; height: 100% !important; }
 </style>
 </head>
 <body>
-<h2>n × m Coordinate Grid (0,0 bottom-left → n×m−1, n×m−1 top-right)</h2>
+
+<h2>n × m Coordinate Grid (0,0 bottom-left → n×m−1 top-right)</h2>
 
 <label>n (width): <input type="number" id="n" min="1" value="5"></label>
 <label>m (height): <input type="number" id="m" min="1" value="7"></label>
 <button onclick="makeGrid()">Make Grid</button>
 
-<div id="grid"></div>
+<div id="gridContainer">
+  <div id="grid"></div>
+</div>
 
 <hr>
 
@@ -55,123 +40,183 @@
 
 <p><strong>Loop Result:</strong> <span id="loopResult"></span></p>
 
+<div id="stats"></div>
+
 <hr>
 
 <h3>All Loop Sizes</h3>
 <div id="loopList"></div>
 
+<svg id="permGraph"></svg>
+
+<div id="barChartContainer">
+  <canvas id="barChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 let n = 0, m = 0;
+let allLoops = [];
+const BRIGHT_GREEN = '#4CAF50';
+let barChartInstance = null;
 
-function makeGrid() {
+function makeGrid(){
   n = parseInt(document.getElementById('n').value);
   m = parseInt(document.getElementById('m').value);
   const grid = document.getElementById('grid');
-  grid.innerHTML = '';
-  grid.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  grid.innerHTML='';
+  grid.style.gridTemplateColumns=`repeat(${n}, 1fr)`;
+  const total = n*m;
 
-  const total = n * m;
-
-  // Build grid visually (top row first)
-  for (let y = m - 1; y >= 0; y--) {
-    for (let x = 0; x < n; x++) {
-      const red = y * n + x;  // horizontal order (bottom→top)
-      const blue = x * m + y; // vertical order (bottom→top)
+  for(let y=m-1;y>=0;y--){
+    for(let x=0;x<n;x++){
+      const red = y*n + x;
+      const blue = x*m + y;
       const cell = document.createElement('div');
-      cell.className = 'cell';
-      cell.dataset.red = red;
-      cell.dataset.blue = blue;
-      cell.innerHTML = `(<span class="red">${red}</span>,<span class="blue">${blue}</span>)`;
+      cell.className='cell';
+      cell.dataset.red=red;
+      cell.dataset.blue=blue;
+      cell.textContent = `(${red},${blue})`;
       grid.appendChild(cell);
     }
   }
 
-  // Update input range
-  document.getElementById('redNumber').max = total - 1;
-
-  // Compute and list all loops
+  document.getElementById('redNumber').max = total-1;
   listAllLoops();
+  drawPermutationGraph([]); // show graph initially with no highlights
+  drawBarChart();
 }
 
-function findLoop(startRed) {
-  const total = n * m;
-  if (isNaN(startRed) || startRed < 0 || startRed >= total) return [];
+function f(red){
+  const x = red % n, y = Math.floor(red / n);
+  return x*m + y;
+}
 
-  let loop = [];
-  let currentRed = startRed;
-  const visited = new Set();
-
-  while (!visited.has(currentRed)) {
+function findLoop(startRed){
+  const total = n*m;
+  if(isNaN(startRed)||startRed<0||startRed>=total) return [];
+  let loop=[], visited=new Set(), currentRed=startRed;
+  while(!visited.has(currentRed)){
     visited.add(currentRed);
     loop.push(currentRed);
-
-    // Find the cell whose blue number = currentRed
-    const cell = Array.from(document.querySelectorAll('.cell'))
-      .find(c => parseInt(c.dataset.blue) === currentRed);
-    if (!cell) break;
-
-    const nextRed = parseInt(cell.dataset.red);
-    currentRed = nextRed;
-
-    if (visited.has(currentRed)) {
-      loop.push(currentRed);
+    const next = f(currentRed);
+    if(visited.has(next)){
+      loop.push(next);
       break;
     }
+    currentRed = next;
   }
-
   return loop;
 }
 
-function listAllLoops() {
-  const total = n * m;
-  const seen = new Set();
-  const results = [];
-
-  for (let i = 0; i < total; i++) {
-    if (seen.has(i)) continue;
+function listAllLoops(){
+  const total = n*m;
+  const seen=new Set();
+  const results=[];
+  allLoops=[];
+  for(let i=0;i<total;i++){
+    if(seen.has(i)) continue;
     const loop = findLoop(i);
-    const size = loop.length > 1 ? loop.length - 1 : 0;
+    const size = loop.length>1 ? loop.length-1 : 1;
     results.push(`${loop.join(' → ')} (Loop size: ${size})`);
-    loop.forEach(num => seen.add(num));
+    loop.forEach(num=>seen.add(num));
+    allLoops.push(loop);
   }
-
-  const uniqueLoops = results.length;
-  const output = results.join('\n') + `\n\nTotal unique loops: ${uniqueLoops}`;
-  document.getElementById('loopList').textContent = output;
+  document.getElementById('loopList').textContent = results.join('\n');
+  computeStats();
 }
 
-function highlightLoop(loop) {
-  // Clear highlights
-  document.querySelectorAll('.cell').forEach(c => c.classList.remove('highlight', 'start'));
-  loop.forEach((num, i) => {
-    const cell = Array.from(document.querySelectorAll('.cell'))
-      .find(c => parseInt(c.dataset.red) === num);
-    if (cell) {
-      if (i === 0) cell.classList.add('start');
-      else cell.classList.add('highlight');
+function computeStats(){
+  const sizes = allLoops.map(l=>l.length>1 ? l.length-1 : 1);
+  const sorted = [...sizes].sort((a,b)=>a-b);
+  const mid = Math.floor(sorted.length/2);
+  const median = (sorted.length%2 !== 0) ? sorted[mid] : ((sorted[mid-1]+sorted[mid])/2).toFixed(2);
+
+  const freq = {};
+  let mode = sorted[0], maxFreq = 0;
+  sorted.forEach(s=>{
+    freq[s] = (freq[s]||0)+1;
+    if(freq[s]>maxFreq){ maxFreq=freq[s]; mode=s; }
+  });
+
+  document.getElementById('stats').textContent = 
+    `Median: ${median}, Mode: ${mode}`;
+}
+
+function highlightLoop(loop){
+  const cells = Array.from(document.querySelectorAll('.cell'));
+  cells.forEach(c=>c.style.backgroundColor='');
+  loop.forEach(num=>{
+    const cell=cells.find(c=>parseInt(c.dataset.red)===num);
+    if(cell) cell.style.backgroundColor=BRIGHT_GREEN;
+  });
+  drawPermutationGraph(loop);
+}
+
+function findAndHighlightLoop(){
+  const redNum=parseInt(document.getElementById('redNumber').value);
+  if(!n||!m){alert('Please create a grid first.');return;}
+  const total=n*m;if(isNaN(redNum)||redNum<0||redNum>=total){alert(`Red number must be between 0 and ${total-1}`);return;}
+  const loop=findLoop(redNum);
+  const size=loop.length>1?loop.length-1:1;
+  document.getElementById('loopResult').textContent=`${loop.join(' → ')} (Loop size: ${size})`;
+  highlightLoop(loop);
+}
+
+function drawPermutationGraph(highlightLoop){
+  const svg = document.getElementById('permGraph');
+  svg.innerHTML='';
+  const total=n*m;
+  const width = svg.clientWidth || 800, height = svg.clientHeight || 400;
+  const cx = width/2, cy = height/2, r = Math.min(cx,cy)-40;
+  const coords = [];
+  for(let i=0;i<total;i++){
+    const angle = 2*Math.PI*i/total;
+    coords.push([cx + r*Math.cos(angle), cy + r*Math.sin(angle)]);
+  }
+
+  for(let i=0;i<total;i++){
+    const j = f(i);
+    if(i===j) continue;
+    const [x1,y1]=coords[i], [x2,y2]=coords[j];
+    const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.classList.add('edge');
+    if(highlightLoop.includes(i) && highlightLoop.includes(j)) line.classList.add('highlighted');
+    svg.appendChild(line);
+  }
+
+  for(let i=0;i<total;i++){
+    const [x,y]=coords[i];
+    const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    circle.setAttribute("cx", x); circle.setAttribute("cy", y); circle.setAttribute("r", 5);
+    circle.classList.add('node');
+    if(highlightLoop.includes(i)) circle.classList.add('highlighted');
+    svg.appendChild(circle);
+  }
+}
+
+function drawBarChart(){
+  const ctx = document.getElementById('barChart').getContext('2d');
+  const sizes = allLoops.map(l=>l.length>1?l.length-1:1);
+  if(barChartInstance) barChartInstance.destroy();
+  barChartInstance = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:allLoops.map((_,i)=>i+1),
+      datasets:[{label:'Loop size', data:sizes, backgroundColor:'#2196F3'}]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{beginAtZero:true, title:{display:true,text:'Size'}},
+        x:{title:{display:true,text:'Loop #'}}
+      }
     }
   });
-}
-
-function findAndHighlightLoop() {
-  const redNum = parseInt(document.getElementById('redNumber').value);
-  if (!n || !m) {
-    alert('Please create a grid first.');
-    return;
-  }
-  const total = n * m;
-  if (isNaN(redNum) || redNum < 0 || redNum >= total) {
-    alert(`Red number must be between 0 and ${total - 1}`);
-    return;
-  }
-
-  const loop = findLoop(redNum);
-  const size = loop.length > 1 ? loop.length - 1 : 0;
-
-  document.getElementById('loopResult').textContent =
-    `${loop.join(' → ')} (Loop size: ${size})`;
-
-  highlightLoop(loop);
 }
 </script>
 </body>
