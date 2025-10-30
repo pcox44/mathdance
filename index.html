@@ -8,7 +8,7 @@
   body { font-family: Arial, sans-serif; padding: 20px; background-color: #f8f8f8; }
   #gridContainer { position: relative; margin-bottom: 20px; }
   #grid { display: grid; gap: 4px; margin-top: 10px; position: relative; }
-  .cell { border: 1px solid #888; text-align: center; padding: 10px; font-weight: bold; transition: background-color 0.3s; }
+  .cell { border: 1px solid #888; text-align: center; padding: 10px; font-weight: bold; transition: background-color 0.3s; cursor: pointer; }
   .highlighted { background-color: #4CAF50 !important; color: white; }
   #loopList { margin-top: 20px; font-family: monospace; white-space: pre-wrap; }
   #permGraph { border: 1px solid #ccc; width: 100%; height: 400px; background-color: #eef; margin-top: 20px; }
@@ -77,6 +77,12 @@ function makeGrid(){
       cell.dataset.red=red;
       cell.dataset.blue=blue;
       cell.textContent = `(${red},${blue})`;
+      cell.addEventListener('click', ()=> {
+        const loop = findLoop(red);
+        highlightLoop(loop);
+        const size = loop.length>1?loop.length-1:1;
+        document.getElementById('loopResult').textContent=`${loop.join(' → ')} (Loop size: ${size})`;
+      });
       grid.appendChild(cell);
     }
   }
